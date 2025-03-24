@@ -1,0 +1,16 @@
+{
+  "name": "qiuqiu-client",
+  "version": "1.0.0",
+  "description": "球球大作战游戏客户端",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@types/node": "^20.10.5",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10"
+  },
+  "type": "module"
+}
