@@ -36,10 +36,15 @@ type InitMessage = {
   state: GameState;
 };
 
+type UpdateMessage = {
+  type: 'UPDATE';
+  state: Partial<GameState>;
+};
+
 export class WebSocketManager {
   private ws!: WebSocket; // 使用明确赋值断言
   private playerId: string = '';
-  public onGameStateUpdate?: (state: GameState) => void;
+  public onGameStateUpdate?: (state: Partial<GameState>) => void;
   private messageHandlers: Map<string, (data: any) => void> = new Map();
   private reconnectAttempts: number = 0;
   private readonly maxReconnectAttempts: number = 5;
@@ -73,23 +78,66 @@ export class WebSocketManager {
         const message = JSON.parse(event.data);
         const handler = this.messageHandlers.get(message.type);
         
-        // 特殊处理INIT消息
-        if (message.type === 'INIT') {
-          handler?.(message);
-        } else {
-          handler?.(message.data || message);
+        // 类型化消息处理
+        switch (message.type) {
+          case 'INIT':
+            handler?.(message as InitMessage);
+            break;
+          case 'UPDATE':
+            if (!message.state) {
+              throw new Error('UPDATE消息缺少state字段');
+            }
+            handler?.(message as UpdateMessage);
+            break;
+          default:
+            handler?.(message.data || message);
         }
       } catch (error) {
-        console.error('[WebSocket] 消息解析失败:', {
-          error,
-          rawData: event.data
-        });
+        const errorInfo = {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          rawData: event.data,
+          readyState: this.ws.readyState
+        };
+        console.error('[WebSocket] 消息处理失败:', errorInfo);
       }
     };
   }
 
   // 注册默认消息处理器
   private registerDefaultHandlers() {
+    this.on('UPDATE', (data: UpdateMessage) => {
+      if (!data.state) {
+        console.warn('[WebSocket] 收到空UPDATE消息');
+        return;
+      }
+      
+      // 强制初始化所有数组字段
+      const safeState: Partial<GameState> = {
+        players: Array.isArray(data.state.players) ? data.state.players : [],
+        foods: Array.isArray(data.state.foods) ? data.state.foods : [],
+        viruses: Array.isArray(data.state.viruses) ? data.state.viruses : []
+      };
+      
+      console.debug('[WebSocket] 安全状态:', {
+        players: safeState.players?.length ?? 0,
+        foods: safeState.foods?.length ?? 0,
+        viruses: safeState.viruses?.length ?? 0
+      });
+      
+      if (this.onGameStateUpdate) {
+        try {
+          this.onGameStateUpdate(safeState);
+        } catch (err) {
+          console.error('[WebSocket] 状态更新失败:', {
+            error: err instanceof Error ? err.message : String(err),
+            state: safeState,
+            rawData: data
+          });
+        }
+      }
+    });
+    
     this.on('INIT', (data: InitMessage) => {
       console.debug('[WebSocket] 收到完整INIT消息:', JSON.stringify(data, null, 2));
       

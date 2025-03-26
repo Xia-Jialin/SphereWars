@@ -75,8 +75,17 @@ export class Game {
   }
 
   private handleNetworkUpdate(state: any) {
+    // 参数验证
+    if (!state || (state.type === 'UPDATE' && (!state.state || !Array.isArray(state.state.players) || !Array.isArray(state.state.foods)))) {
+      console.warn('Invalid game state received:', state);
+      return;
+    }
+    
+    // 统一处理状态对象
+    const gameState = state.type === 'UPDATE' ? state.state : state;
+
     // 更新其他玩家
-    state.players.forEach((remotePlayer: any) => {
+    gameState.players.forEach((remotePlayer: any) => {
       if (remotePlayer.id === this.playerId) return;
       
       let player = this.remotePlayers.get(remotePlayer.id);
@@ -97,9 +106,13 @@ export class Game {
     });
 
     // 更新食物
-    this.foods = state.foods.map((food: any) => 
-      new Food(food.x, food.y)
-    );
+    if (gameState.foods && Array.isArray(gameState.foods)) {
+      this.foods = gameState.foods.map((food: any) =>
+        new Food(food.x, food.y)
+      );
+    } else {
+      console.warn('Invalid or missing foods array in game state:', gameState);
+    }
   }
 
   private update(deltaTime: number) {
