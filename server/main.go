@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"qiuqiu/server/game"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -39,6 +40,7 @@ func handleWebSocket(gameManager *game.GameManager) http.HandlerFunc {
 			GameManager: gameManager,
 			PlayerID:    "",
 			Send:        make(chan []byte, 256),
+			ConnMutex:   &sync.Mutex{},
 		}
 
 		// 延迟注销客户端
@@ -51,9 +53,12 @@ func handleWebSocket(gameManager *game.GameManager) http.HandlerFunc {
 		// 启动写循环
 		go func() {
 			for message := range client.Send {
+				client.ConnMutex.Lock()
 				if err := conn.WriteMessage(websocket.TextMessage, message); err != nil {
+					client.ConnMutex.Unlock()
 					return
 				}
+				client.ConnMutex.Unlock()
 			}
 		}()
 
@@ -63,9 +68,12 @@ func handleWebSocket(gameManager *game.GameManager) http.HandlerFunc {
 			defer ticker.Stop()
 			for {
 				<-ticker.C
+				client.ConnMutex.Lock()
 				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					client.ConnMutex.Unlock()
 					return
 				}
+				client.ConnMutex.Unlock()
 			}
 		}()
 

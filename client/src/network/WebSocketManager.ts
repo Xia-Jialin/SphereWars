@@ -1,11 +1,45 @@
-type GameMessage = {
-  type: string;
-  data: any;
+type PlayerState = {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  mass: number;
+  radius: number;
+  color: string;
+};
+
+type FoodState = {
+  id: string;
+  x: number;
+  y: number;
+  mass: number;
+  radius: number;
+};
+
+type VirusState = {
+  id: string;
+  x: number;
+  y: number;
+  mass: number;
+  radius: number;
+};
+
+type GameState = {
+  players: PlayerState[];
+  foods: FoodState[];
+  viruses: VirusState[];
+};
+
+type InitMessage = {
+  type: 'INIT';
+  playerId: string;
+  state: GameState;
 };
 
 export class WebSocketManager {
   private ws!: WebSocket; // 使用明确赋值断言
   private playerId: string = '';
+  public onGameStateUpdate?: (state: GameState) => void;
   private messageHandlers: Map<string, (data: any) => void> = new Map();
   private reconnectAttempts: number = 0;
   private readonly maxReconnectAttempts: number = 5;
@@ -36,20 +70,51 @@ export class WebSocketManager {
 
     this.ws.onmessage = (event) => {
       try {
-        const message: GameMessage = JSON.parse(event.data);
+        const message = JSON.parse(event.data);
         const handler = this.messageHandlers.get(message.type);
-        handler?.(message.data);
+        
+        // 特殊处理INIT消息
+        if (message.type === 'INIT') {
+          handler?.(message);
+        } else {
+          handler?.(message.data || message);
+        }
       } catch (error) {
-        console.error('[WebSocket] 消息解析失败:', error);
+        console.error('[WebSocket] 消息解析失败:', {
+          error,
+          rawData: event.data
+        });
       }
     };
   }
 
   // 注册默认消息处理器
   private registerDefaultHandlers() {
-    this.on('INIT', (data) => {
+    this.on('INIT', (data: InitMessage) => {
+      console.debug('[WebSocket] 收到完整INIT消息:', JSON.stringify(data, null, 2));
+      
+      if (!data?.playerId || !data?.state) {
+        console.error('[WebSocket] 无效的INIT消息', {
+          missingFields: [
+            ...(!data.playerId ? ['playerId'] : []),
+            ...(!data.state ? ['state'] : [])
+          ],
+          rawData: data
+        });
+        return;
+      }
+      
       this.playerId = data.playerId;
-      console.log(`[WebSocket] 玩家注册成功 ID: ${this.playerId}`);
+      console.log(`[WebSocket] 玩家注册成功 ID: ${this.playerId}`, {
+        players: data.state.players.length,
+        foods: data.state.foods.length,
+        viruses: data.state.viruses.length
+      });
+      
+      // 触发游戏状态更新
+      if (this.onGameStateUpdate) {
+        this.onGameStateUpdate(data.state);
+      }
     });
 
     this.on('ERROR', (data) => {
@@ -65,14 +130,14 @@ export class WebSocketManager {
   }
 
   /** 发送消息到服务器 */
-  public send(type: string, name: string = "") {
+  public send(type: string, data: any = {}) {
     if (this.ws.readyState !== WebSocket.OPEN) {
       console.warn(`[WebSocket] 连接未就绪，无法发送 ${type} 消息`);
       return false;
     }
 
     try {
-      const message = { type, name };
+      const message = { type, ...data };
       this.ws.send(JSON.stringify(message));
       return true;
     } catch (error) {
@@ -105,13 +170,20 @@ export class WebSocketManager {
 
         // 使用一次性监听器
         const handler = (data: any) => {
+          console.debug('[WebSocket] 注册流程收到INIT消息:', JSON.stringify(data, null, 2));
+          if (!data?.playerId) {
+            clearTimeout(timer);
+            this.messageHandlers.delete('INIT');
+            reject(`服务器返回无效的玩家ID，消息体: ${JSON.stringify(data)}`);
+            return;
+          }
           clearTimeout(timer);
           this.messageHandlers.delete('INIT');
           resolve(data.playerId);
         };
         
         this.on('INIT', handler);
-        this.send('REGISTER', name);
+        this.send('REGISTER', { name });
       };
 
       waitForConnection();

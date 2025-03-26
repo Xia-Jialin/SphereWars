@@ -155,6 +155,7 @@ type Client struct {
 	GameManager *GameManager
 	PlayerID    string
 	Send        chan []byte
+	ConnMutex   *sync.Mutex
 }
 
 // 创建新的游戏管理器
