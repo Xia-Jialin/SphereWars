@@ -2,6 +2,7 @@ import { Player } from './Player';
 import { Camera } from './Camera';
 import { InputManager } from './InputManager';
 import { Food } from './Food';
+import { WebSocketManager } from '../network/WebSocketManager';
 
 export class Game {
   private canvas: HTMLCanvasElement;
@@ -15,13 +16,33 @@ export class Game {
   private running: boolean = false;
   private readonly mapSize: number = 10000;
   private readonly maxFoods: number = 1000;
+  private remotePlayers: Map<string, Player> = new Map();
+  private readonly playerId: string;
+  private readonly wsManager: WebSocketManager;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    playerId: string,
+    wsManager: WebSocketManager
+  ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
+    this.playerId = playerId;
+    this.wsManager = wsManager;
     this.camera = new Camera(canvas.width / 2, canvas.height / 2);
     this.inputManager = new InputManager();
-    this.player = new Player('player1', 'Player 1', this.mapSize / 2, this.mapSize / 2, 10);
+    this.player = new Player(
+      playerId,
+      `Player ${playerId.slice(0, 4)}`,
+      this.mapSize / 2,
+      this.mapSize / 2,
+      10
+    );
+
+    // 监听网络更新
+    this.wsManager.on('UPDATE', (state) => {
+      this.handleNetworkUpdate(state);
+    });
     this.generateFoods();
 
     // 监听空格键触发分裂
@@ -53,7 +74,43 @@ export class Game {
     requestAnimationFrame(this.gameLoop.bind(this));
   }
 
+  private handleNetworkUpdate(state: any) {
+    // 更新其他玩家
+    state.players.forEach((remotePlayer: any) => {
+      if (remotePlayer.id === this.playerId) return;
+      
+      let player = this.remotePlayers.get(remotePlayer.id);
+      if (!player) {
+        player = new Player(
+          remotePlayer.id,
+          remotePlayer.name,
+          remotePlayer.x,
+          remotePlayer.y,
+          remotePlayer.mass
+        );
+        this.remotePlayers.set(remotePlayer.id, player);
+      }
+      
+      player.x = remotePlayer.x;
+      player.y = remotePlayer.y;
+      player.mass = remotePlayer.mass;
+    });
+
+    // 更新食物
+    this.foods = state.foods.map((food: any) => 
+      new Food(food.x, food.y)
+    );
+  }
+
   private update(deltaTime: number) {
+    // 发送玩家状态
+    this.wsManager.send('PLAYER_UPDATE', {
+      x: this.player.x,
+      y: this.player.y,
+      mass: this.player.mass,
+      direction: this.inputManager.getDirection()
+    });
+
     // 更新玩家位置
     const direction = this.inputManager.getDirection();
     this.player.move(direction.x, direction.y, deltaTime);
@@ -98,6 +155,7 @@ export class Game {
     // 绘制所有玩家球体
     this.player.render(this.ctx);
     this.splitPlayers.forEach(player => player.render(this.ctx));
+    this.remotePlayers.forEach(player => player.render(this.ctx));
 
     // 恢复上下文状态
     this.ctx.restore();

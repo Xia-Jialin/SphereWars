@@ -1,10 +1,10 @@
 export class Player {
-  private x: number;
-  private y: number;
+  public x: number;
+  public y: number;
   private _mass: number;
-  private color: string;
-  private id: string;
-  private name: string;
+  public color: string;
+  public readonly id: string;
+  public readonly name: string;
   private speed: number = 5;
   private velocity: { x: number; y: number } = { x: 0, y: 0 };
   private splitCooldown: number = 0;
@@ -123,6 +123,14 @@ export class Player {
 
   get mass(): number {
     return this._mass;
+  }
+
+  get velocityX(): number {
+    return this.velocity.x;
+  }
+
+  get velocityY(): number {
+    return this.velocity.y;
   }
 
   set mass(value: number) {
