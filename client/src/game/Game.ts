@@ -172,6 +172,34 @@ export class Game {
 
     // 恢复上下文状态
     this.ctx.restore();
+
+    // 绘制玩家状态信息
+    this.renderPlayerStats();
+  }
+
+  private renderPlayerStats() {
+    // 保存当前上下文状态
+    this.ctx.save();
+
+    // 设置文本样式
+    this.ctx.font = '16px Arial';
+    this.ctx.fillStyle = 'white';
+    this.ctx.strokeStyle = 'black';
+    this.ctx.lineWidth = 2;
+    this.ctx.textAlign = 'left';
+
+    // 绘制背景
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    this.ctx.fillRect(10, 10, 200, 60);
+
+    // 绘制玩家信息
+    this.ctx.fillStyle = 'white';
+    this.ctx.fillText(`位置: (${this.player.x.toFixed(1)}, ${this.player.y.toFixed(1)})`, 20, 30);
+    this.ctx.fillText(`质量: ${this.player.mass.toFixed(1)}`, 20, 50);
+    this.ctx.fillText(`半径: ${this.player.radius.toFixed(1)}`, 20, 70);
+
+    // 恢复上下文状态
+    this.ctx.restore();
   }
 
   private renderGrid() {
