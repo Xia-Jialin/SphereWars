@@ -2,7 +2,7 @@ import { Player } from './Player';
 import { Camera } from './Camera';
 import { InputManager } from './InputManager';
 import { Food } from './Food';
-import { WebSocketManager } from '../network/WebSocketManager';
+import { InitMessage, WebSocketManager } from '../network/WebSocketManager';
 
 export class Game {
   private canvas: HTMLCanvasElement;
@@ -22,21 +22,34 @@ export class Game {
 
   constructor(
     canvas: HTMLCanvasElement,
-    playerId: string,
+    initMessage: InitMessage,
     wsManager: WebSocketManager
   ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
-    this.playerId = playerId;
+    this.playerId = initMessage.playerId;
     this.wsManager = wsManager;
     this.camera = new Camera(canvas.width / 2, canvas.height / 2);
     this.inputManager = new InputManager();
+    // 从 initMessage.state.players 中查找当前玩家的数据
+    const initialPlayerState = initMessage.state?.players?.find(
+      (player) => player.id === this.playerId
+    );
+
+    // 如果找不到玩家数据，抛出异常
+    if (!initialPlayerState) {
+      throw new Error(
+        `玩家初始化失败：未找到 ID 为 ${this.playerId} 的玩家数据。请检查服务器返回的初始状态。`
+      );
+    }
+
+    // 使用服务器提供的数据初始化玩家
     this.player = new Player(
-      playerId,
-      `Player ${playerId.slice(0, 4)}`,
-      this.mapSize / 2,
-      this.mapSize / 2,
-      10
+      this.playerId,
+      initialPlayerState.name,
+      initialPlayerState.x,
+      initialPlayerState.y,
+      initialPlayerState.mass
     );
 
     // 监听网络更新

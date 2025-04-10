@@ -80,10 +80,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // 初始化网络连接
     const wsManager = new WebSocketManager('ws://localhost:8080/ws');
-    const playerId = await wsManager.register(playerName);
+    const initMessage = await wsManager.register(playerName);
 
     // 初始化游戏
-    const game = new Game(canvas, playerId, wsManager);
+    const game = new Game(canvas, initMessage, wsManager);
     game.start();
 
   } catch (error) {

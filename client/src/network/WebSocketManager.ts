@@ -1,4 +1,4 @@
-type PlayerState = {
+export type PlayerState = {
   id: string;
   name: string;
   x: number;
@@ -30,7 +30,7 @@ type GameState = {
   viruses: VirusState[];
 };
 
-type InitMessage = {
+export type InitMessage = {
   type: 'INIT';
   playerId: string;
   state: GameState;
@@ -195,7 +195,7 @@ export class WebSocketManager {
   }
 
   /** 玩家注册 */
-  public async register(name: string, timeout = 5000): Promise<string> {
+  public async register(name: string, timeout = 5000): Promise<InitMessage> {
     return new Promise((resolve, reject) => {
       if (!name) reject("玩家名称不能为空");
 
@@ -217,17 +217,17 @@ export class WebSocketManager {
         }, timeout);
 
         // 使用一次性监听器
-        const handler = (data: any) => {
+        const handler = (data: InitMessage) => {
           console.debug('[WebSocket] 注册流程收到INIT消息:', JSON.stringify(data, null, 2));
-          if (!data?.playerId) {
+          if (!data?.playerId || !data?.state) {
             clearTimeout(timer);
             this.messageHandlers.delete('INIT');
-            reject(`服务器返回无效的玩家ID，消息体: ${JSON.stringify(data)}`);
+            reject(`服务器返回无效的INIT消息，消息体: ${JSON.stringify(data)}`);
             return;
           }
           clearTimeout(timer);
           this.messageHandlers.delete('INIT');
-          resolve(data.playerId);
+          resolve(data);
         };
         
         this.on('INIT', handler);
