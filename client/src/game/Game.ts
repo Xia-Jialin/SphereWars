@@ -93,14 +93,14 @@ export class Game {
       console.warn('Invalid game state received:', state);
       return;
     }
-    
+
     // 统一处理状态对象
     const gameState = state.type === 'UPDATE' ? state.state : state;
 
     // 更新其他玩家
     gameState.players.forEach((remotePlayer: any) => {
-      if (remotePlayer.id === this.playerId) return;
-      
+      // if (remotePlayer.id === this.playerId) return;
+
       let player = this.remotePlayers.get(remotePlayer.id);
       if (!player) {
         player = new Player(
@@ -112,7 +112,7 @@ export class Game {
         );
         this.remotePlayers.set(remotePlayer.id, player);
       }
-      
+
       player.x = remotePlayer.x;
       player.y = remotePlayer.y;
       player.mass = remotePlayer.mass;
@@ -136,25 +136,8 @@ export class Game {
       mass: this.player.mass,
       direction: this.inputManager.getDirection()
     });
-
-    // 更新玩家位置
-    const direction = this.inputManager.getDirection();
-    this.player.move(direction.x, direction.y, deltaTime);
-    this.splitPlayers.forEach(player => player.move(direction.x, direction.y, deltaTime));
-
     // 更新相机位置
     this.camera.follow(this.player);
-
-    // 检测食物碰撞
-    this.checkFoodCollisions();
-    
-    // 检测分裂球体的合并
-    this.checkMerge();
-
-    // 补充食物
-    if (this.foods.length < this.maxFoods) {
-      this.generateFoods(10);
-    }
   }
 
   private render() {
