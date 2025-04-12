@@ -19,6 +19,7 @@ export class Game {
   private remotePlayers: Map<string, Player> = new Map();
   private readonly playerId: string;
   private readonly wsManager: WebSocketManager;
+  private direction = { x: 0, y: 0 };
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -99,23 +100,29 @@ export class Game {
 
     // 更新其他玩家
     gameState.players.forEach((remotePlayer: any) => {
-      // if (remotePlayer.id === this.playerId) return;
+      if (remotePlayer.id === this.playerId) {
+        // 更新主玩家位置
+        this.player.x = remotePlayer.x;
+        this.player.y = remotePlayer.y;
+        this.player.mass = remotePlayer.mass;
+      } else {
+        // 更新其他玩家位置
+        let player = this.remotePlayers.get(remotePlayer.id);
+        if (!player) {
+          player = new Player(
+            remotePlayer.id,
+            remotePlayer.name,
+            remotePlayer.x,
+            remotePlayer.y,
+            remotePlayer.mass
+          );
+          this.remotePlayers.set(remotePlayer.id, player);
+        }
 
-      let player = this.remotePlayers.get(remotePlayer.id);
-      if (!player) {
-        player = new Player(
-          remotePlayer.id,
-          remotePlayer.name,
-          remotePlayer.x,
-          remotePlayer.y,
-          remotePlayer.mass
-        );
-        this.remotePlayers.set(remotePlayer.id, player);
+        player.x = remotePlayer.x;
+        player.y = remotePlayer.y;
+        player.mass = remotePlayer.mass;
       }
-
-      player.x = remotePlayer.x;
-      player.y = remotePlayer.y;
-      player.mass = remotePlayer.mass;
     });
 
     // 更新食物
@@ -130,11 +137,13 @@ export class Game {
 
   private update(deltaTime: number) {
     // 发送玩家状态
-    this.wsManager.send('PLAYER_UPDATE', {
+    // 从InputManager获取方向向量
+    this.direction = this.inputManager.getDirection();
+    this.wsManager.sendPlayerUpdate({
       x: this.player.x,
       y: this.player.y,
       mass: this.player.mass,
-      direction: this.inputManager.getDirection()
+      direction: this.direction
     });
     // 更新相机位置
     this.camera.follow(this.player);

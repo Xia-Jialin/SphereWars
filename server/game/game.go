@@ -288,7 +288,7 @@ func (gm *GameManager) handleRegister(client *Client) {
 		log.Printf("客户端 %s 的Send channel未初始化", client.PlayerID)
 		return
 	}
-	
+
 	// 尝试发送消息
 	select {
 	case client.Send <- jsonMsg:
@@ -397,17 +397,11 @@ func (gm *GameManager) update() {
 	// 更新玩家位置
 	for _, player := range gm.Players {
 		// 更新玩家位置逻辑
-		// 根据上次更新时间计算玩家位置
 		timeSinceUpdate := time.Since(player.LastUpdate).Seconds()
 		if timeSinceUpdate > 0 {
-			// 根据方向更新位置
-			speed := calculateSpeed(player.Mass)
-			player.X += player.Direction.X * speed * timeSinceUpdate
-			player.Y += player.Direction.Y * speed * timeSinceUpdate
-
-			// 确保玩家不会离开地图边界
-			player.X = math.Max(player.Radius, math.Min(MAP_SIZE-player.Radius, player.X))
-			player.Y = math.Max(player.Radius, math.Min(MAP_SIZE-player.Radius, player.Y))
+			movement := &PlayerMovement{}
+			movement.CalculateNewPosition(player, timeSinceUpdate)
+			player.LastUpdate = time.Now() // 确保更新时间戳
 		}
 
 		// 检测玩家是否吃到食物
@@ -505,6 +499,27 @@ func (gm *GameManager) sendStateUpdate() {
 	gm.Broadcast <- jsonMsg
 }
 
+// PlayerMovement 处理玩家移动相关逻辑
+type PlayerMovement struct{}
+
+// 计算新位置
+func (pm *PlayerMovement) CalculateNewPosition(player *Player, timeSinceUpdate float64) {
+	if timeSinceUpdate <= 0 {
+		return
+	}
+
+	speed := calculateSpeed(player.Mass)
+	player.X += player.Direction.X * speed * timeSinceUpdate
+	player.Y += player.Direction.Y * speed * timeSinceUpdate
+	pm.applyBoundaryConstraints(player)
+}
+
+// 确保玩家不会离开地图边界
+func (pm *PlayerMovement) applyBoundaryConstraints(player *Player) {
+	player.X = math.Max(player.Radius, math.Min(MAP_SIZE-player.Radius, player.X))
+	player.Y = math.Max(player.Radius, math.Min(MAP_SIZE-player.Radius, player.Y))
+}
+
 // 处理玩家更新消息
 func (gm *GameManager) HandlePlayerUpdate(playerID string, data map[string]interface{}) {
 	gm.mutex.Lock()
@@ -515,20 +530,7 @@ func (gm *GameManager) HandlePlayerUpdate(playerID string, data map[string]inter
 		return
 	}
 
-	// 更新玩家位置和方向
-	if x, ok := data["x"].(float64); ok {
-		player.X = x
-	}
-
-	if y, ok := data["y"].(float64); ok {
-		player.Y = y
-	}
-
-	if mass, ok := data["mass"].(float64); ok {
-		player.Mass = mass
-		player.Radius = massToRadius(mass)
-	}
-
+	// 更新玩家属性
 	if direction, ok := data["direction"].(map[string]interface{}); ok {
 		if dx, ok := direction["x"].(float64); ok {
 			player.Direction.X = dx
@@ -538,6 +540,15 @@ func (gm *GameManager) HandlePlayerUpdate(playerID string, data map[string]inter
 		}
 	}
 
+	if mass, ok := data["mass"].(float64); ok {
+		player.Mass = mass
+		player.Radius = massToRadius(mass)
+	}
+
+	// 计算新位置并立即更新
+	movement := &PlayerMovement{}
+	timeSinceUpdate := time.Since(player.LastUpdate).Seconds()
+	movement.CalculateNewPosition(player, timeSinceUpdate)
 	player.LastUpdate = time.Now()
 }
 

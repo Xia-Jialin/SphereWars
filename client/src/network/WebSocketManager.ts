@@ -60,8 +60,9 @@ export class WebSocketManager {
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
-      console.log('[WebSocket] 连接已建立');
       this.reconnectAttempts = 0;
+      // 测试发送一条消息确认连接
+      this.send('PING', {timestamp: Date.now()});
     };
 
     this.ws.onclose = () => {
@@ -192,6 +193,36 @@ export class WebSocketManager {
       console.error(`[WebSocket] 消息发送失败:`, error);
       return false;
     }
+  }
+
+  /** 发送玩家状态更新 */
+  public sendPlayerUpdate(state: {
+    x: number;
+    y: number;
+    mass: number;
+    direction: {x: number; y: number};
+  }) {
+    if (!state || typeof state.x !== 'number' || typeof state.y !== 'number' || 
+        typeof state.mass !== 'number' || !state.direction) {
+      console.error('[WebSocket] 无效的玩家状态:', state);
+      return false;
+    }
+
+    // 归一化方向向量
+    const length = Math.sqrt(state.direction.x ** 2 + state.direction.y ** 2);
+    const normalizedDirection = length > 0 ? {
+      x: state.direction.x / length,
+      y: state.direction.y / length
+    } : {x: 0, y: 0};
+
+    return this.send('PLAYER_UPDATE', {
+      data: {
+        x: state.x,
+        y: state.y,
+        mass: state.mass,
+        direction: normalizedDirection
+      }
+    });
   }
 
   /** 玩家注册 */
